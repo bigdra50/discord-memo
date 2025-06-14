@@ -6,6 +6,7 @@ from typing import Optional, Dict, Any
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
+from database import DatabaseManager
 
 # ログ設定
 logging.basicConfig(level=logging.INFO)
@@ -24,7 +25,30 @@ NAME_PATTERN = re.compile(r'^[a-zA-Z0-9_\-]+$')
 class UserDataManager:
     def __init__(self, filepath: str = DATA_FILE):
         self.filepath = filepath
-        self.data = self.load_data()
+        self.use_database = self._should_use_database()
+        
+        if self.use_database:
+            try:
+                self.db = DatabaseManager()
+                # Test connection and initialize schema if needed
+                if self.db.test_connection():
+                    self.db.initialize_schema()
+                    logger.info("Using PostgreSQL database for data storage")
+                else:
+                    logger.warning("Database connection failed, falling back to JSON file")
+                    self.use_database = False
+                    self.data = self.load_data()
+            except Exception as e:
+                logger.warning(f"Database initialization failed: {e}, falling back to JSON file")
+                self.use_database = False
+                self.data = self.load_data()
+        else:
+            self.data = self.load_data()
+    
+    def _should_use_database(self) -> bool:
+        """Check if we should use database based on environment variables"""
+        required_vars = ['PGHOST', 'PGDATABASE', 'PGUSER', 'PGPASSWORD']
+        return all(os.getenv(var) for var in required_vars)
 
     def load_data(self) -> Dict[str, Dict[str, str]]:
         if not os.path.exists(self.filepath):
@@ -47,28 +71,40 @@ class UserDataManager:
             return False
 
     def set_user_data(self, user_id: str, key: str, value: str) -> bool:
-        if user_id not in self.data:
-            self.data[user_id] = {}
-        self.data[user_id][key] = value
-        return self.save_data()
+        if self.use_database:
+            return self.db.set_user_data(user_id, key, value)
+        else:
+            if user_id not in self.data:
+                self.data[user_id] = {}
+            self.data[user_id][key] = value
+            return self.save_data()
 
     def get_user_data(self, user_id: str, key: Optional[str] = None) -> Optional[Any]:
-        if user_id not in self.data:
-            return None
-        if key is None:
-            return self.data[user_id]
-        return self.data[user_id].get(key)
+        if self.use_database:
+            return self.db.get_user_data(user_id, key)
+        else:
+            if user_id not in self.data:
+                return None
+            if key is None:
+                return self.data[user_id]
+            return self.data[user_id].get(key)
 
     def delete_user_data(self, user_id: str, key: str) -> bool:
-        if user_id not in self.data or key not in self.data[user_id]:
-            return False
-        del self.data[user_id][key]
-        if not self.data[user_id]:
-            del self.data[user_id]
-        return self.save_data()
+        if self.use_database:
+            return self.db.delete_user_data(user_id, key)
+        else:
+            if user_id not in self.data or key not in self.data[user_id]:
+                return False
+            del self.data[user_id][key]
+            if not self.data[user_id]:
+                del self.data[user_id]
+            return self.save_data()
 
     def get_user_data_count(self, user_id: str) -> int:
-        return len(self.data.get(user_id, {}))
+        if self.use_database:
+            return self.db.get_user_data_count(user_id)
+        else:
+            return len(self.data.get(user_id, {}))
 
 
 class VaultBot(commands.Bot):
