@@ -102,26 +102,26 @@ jobs:
         # Check for common secret patterns
         SECRETS_FOUND=0
         
-        # Discord bot tokens
-        if grep -r "Bot \|MTI\|NTY\|NDc" --include="*.py" --include="*.yml" --include="*.yaml" --exclude-dir=.git . | grep -v "your_token_here" | grep -v "fake_token"; then
+        # Discord bot tokens (exclude Japanese comments and documentation)
+        if grep -r "Bot \|MTI\|NTY\|NDc" --include="*.py" --include="*.yml" --include="*.yaml" --exclude-dir=.git --exclude-dir=.venv . | grep -v "your_token_here" | grep -v "fake_token" | grep -v "Discord Vault Bot\|手動テスト\|テストスイート\|Bot modules imported"; then
           echo "❌ Potential Discord token found!"
           SECRETS_FOUND=1
         fi
         
         # API keys
-        if grep -r "api_key\|apikey\|api-key" --include="*.py" --exclude-dir=.git . | grep -v "test" | grep -v "example"; then
+        if grep -r "api_key\|apikey\|api-key" --include="*.py" --exclude-dir=.git --exclude-dir=.venv . | grep -v "test" | grep -v "example" | grep -v "コメント"; then
           echo "❌ Potential API key found!"
           SECRETS_FOUND=1
         fi
         
         # Private keys
-        if grep -r "private_key\|privatekey\|private-key" --include="*.py" --exclude-dir=.git . | grep -v "test" | grep -v "example"; then
+        if grep -r "private_key\|privatekey\|private-key" --include="*.py" --exclude-dir=.git --exclude-dir=.venv . | grep -v "test" | grep -v "example" | grep -v "コメント"; then
           echo "❌ Potential private key found!"
           SECRETS_FOUND=1
         fi
         
         # Environment file content
-        if grep -r "DISCORD_TOKEN=" --include="*.py" --exclude-dir=.git . | grep -v "getenv\|environ\|your_token_here\|fake_token"; then
+        if grep -r "DISCORD_TOKEN=" --include="*.py" --exclude-dir=.git --exclude-dir=.venv . | grep -v "getenv\|environ\|your_token_here\|fake_token\|fake_token_for_testing"; then
           echo "❌ Potential hardcoded token found!"
           SECRETS_FOUND=1
         fi

@@ -60,6 +60,7 @@ jobs:
           git push
         else
           echo "requirements.txt is up to date"
+        fi
 
   deploy-railway:
     runs-on: ubuntu-latest

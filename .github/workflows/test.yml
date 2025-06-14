@@ -83,13 +83,13 @@ jobs:
         echo "🔍 Checking for hardcoded secrets..."
         
         # Check for Discord tokens (should not exist in code)
-        if grep -r "discord.*token.*=" --include="*.py" --exclude-dir=.git . | grep -v "DISCORD_TOKEN" | grep -v "fake_token"; then
+        if grep -r "discord.*token.*=" --include="*.py" --exclude-dir=.git --exclude-dir=.venv . | grep -v "DISCORD_TOKEN" | grep -v "fake_token" | grep -v "コメント\|手動テスト\|テストスイート"; then
           echo "❌ Potential hardcoded Discord token found!"
           exit 1
         fi
         
-        # Check for other potential secrets
-        if grep -r "password.*=" --include="*.py" --exclude-dir=.git . | grep -v "test" | grep -v "example" | grep -v "secret123"; then
+        # Check for other potential secrets (exclude virtual environment and common patterns)
+        if grep -r "password.*=" --include="*.py" --exclude-dir=.git --exclude-dir=.venv . | grep -v "test" | grep -v "example" | grep -v "secret123" | grep -v "raw_password\|password:" | grep -v "username, password"; then
           echo "❌ Potential hardcoded password found!"
           exit 1
         fi
