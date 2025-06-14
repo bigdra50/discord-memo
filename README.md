@@ -208,6 +208,64 @@ uv run python -m py_compile bot.py
 - Always manage tokens with environment variables, never hardcode in source
 - Regular security checks automatically run via GitHub Actions
 
+## ⚠️ Important Security Notice
+
+### 🚨 Data That Should NOT Be Stored
+
+This bot stores data in **unencrypted plain text**. **DO NOT store** the following sensitive information:
+
+#### 💳 Financial & Payment Information
+- Credit card numbers
+- Bank account numbers
+- PIN codes
+- Cryptocurrency wallet private keys
+
+#### 🔐 Authentication Credentials
+- Passwords
+- API keys & tokens
+- OAuth authorization codes
+- Two-factor authentication recovery codes
+
+#### 📄 Personal & Legal Documents
+- Social Security Numbers
+- Passport numbers
+- Driver's license numbers
+- Health insurance card numbers
+
+#### 🏥 Medical & Health Information
+- Medical diagnoses
+- Prescription information
+- Genetic information
+
+### ✅ Appropriate Use Cases
+
+This bot is ideal for **lightweight memo purposes**:
+
+- Game settings & server information
+- Study notes & idea memos
+- Project progress
+- Public configuration values
+- Temporary notes
+
+### 🛡️ For Sensitive Information Management
+
+For secure storage of sensitive information, use dedicated tools:
+
+- [1Password](https://1password.com/)
+- [Bitwarden](https://bitwarden.com/)
+- [LastPass](https://www.lastpass.com/)
+- [KeePass](https://keepass.info/)
+
+### 📊 Data Access Permissions
+
+The stored data can be accessed by:
+
+- **You** (via Discord bot)
+- **Railway administrators** (hosting platform)
+- **Server administrators** (with physical/virtual server access)
+
+**Important**: This bot is a convenient memo tool, but the security level is not high. Choose appropriate tools based on your use case.
+
 ## Troubleshooting
 
 ### Bot Won't Come Online
