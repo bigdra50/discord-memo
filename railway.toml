@@ -1,0 +1,16 @@
+[build]
+builder = "nixpacks"
+
+[deploy]
+startCommand = "python bot.py"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
+
+[environment]
+# Environment variables will be set in Railway dashboard
+# DISCORD_TOKEN = "your_discord_token_here"
+
+[resources]
+# Basic configuration for hobby plan
+memory = 512
+cpu = 1
