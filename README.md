@@ -1,12 +1,12 @@
-# Discord Vault - Personal Data Storage Discord Bot
+# Discord Memo - Personal Note Storage Discord Bot
 
 [🇯🇵 日本語版はこちら / Japanese Version](README.jp.md)
 
-[![Test](https://github.com/bigdra50/discord-vault/actions/workflows/test.yml/badge.svg)](https://github.com/bigdra50/discord-vault/actions/workflows/test.yml)
-[![Security Check](https://github.com/bigdra50/discord-vault/actions/workflows/security.yml/badge.svg)](https://github.com/bigdra50/discord-vault/actions/workflows/security.yml)
-[![Deploy](https://github.com/bigdra50/discord-vault/actions/workflows/deploy.yml/badge.svg)](https://github.com/bigdra50/discord-vault/actions/workflows/deploy.yml)
+[![Test](https://github.com/bigdra50/discord-memo/actions/workflows/test.yml/badge.svg)](https://github.com/bigdra50/discord-memo/actions/workflows/test.yml)
+[![Security Check](https://github.com/bigdra50/discord-memo/actions/workflows/security.yml/badge.svg)](https://github.com/bigdra50/discord-memo/actions/workflows/security.yml)
+[![Deploy](https://github.com/bigdra50/discord-memo/actions/workflows/deploy.yml/badge.svg)](https://github.com/bigdra50/discord-memo/actions/workflows/deploy.yml)
 
-A Discord bot for securely storing and managing personal data. Each user has their own dedicated data storage for passwords, notes, and other personal information.
+A Discord bot for storing and managing personal notes and lightweight data. Each user has their own dedicated data storage for notes, settings, and other non-sensitive information.
 
 ## Requirements
 
