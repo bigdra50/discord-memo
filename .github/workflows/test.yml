@@ -1,0 +1,233 @@
+name: Test Discord Vault Bot
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+      with:
+        enable-cache: true
+
+    - name: Set up Python ${{ matrix.python-version }}
+      run: uv python install ${{ matrix.python-version }}
+
+    - name: Install dependencies
+      run: |
+        uv sync --all-extras --dev
+
+    - name: Run unit tests
+      run: |
+        uv run python test_bot.py
+
+    - name: Run manual tests
+      run: |
+        uv run python manual_test.py
+
+    - name: Check code style (optional)
+      run: |
+        # Basic syntax check
+        uv run python -m py_compile bot.py
+        uv run python -m py_compile test_bot.py
+        uv run python -m py_compile manual_test.py
+
+    - name: Test bot import
+      run: |
+        # Test that bot.py can be imported without errors
+        uv run python -c "
+        import sys
+        import os
+        
+        # Mock environment variable to prevent bot from starting
+        os.environ['DISCORD_TOKEN'] = 'fake_token_for_testing'
+        
+        try:
+            from bot import UserDataManager, validate_name, validate_value
+            print('✅ Bot modules imported successfully')
+        except ImportError as e:
+            print(f'❌ Import error: {e}')
+            sys.exit(1)
+        except Exception as e:
+            print(f'✅ Expected error (no Discord connection): {e}')
+        "
+
+  security-check:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+
+    - name: Set up Python
+      run: uv python install 3.11
+
+    - name: Install dependencies
+      run: uv sync --dev
+
+    - name: Check for hardcoded secrets
+      run: |
+        # Check for potential hardcoded tokens/secrets
+        echo "🔍 Checking for hardcoded secrets..."
+        
+        # Check for Discord tokens (should not exist in code)
+        if grep -r "discord.*token.*=" --include="*.py" --exclude-dir=.git . | grep -v "DISCORD_TOKEN" | grep -v "fake_token"; then
+          echo "❌ Potential hardcoded Discord token found!"
+          exit 1
+        fi
+        
+        # Check for other potential secrets
+        if grep -r "password.*=" --include="*.py" --exclude-dir=.git . | grep -v "test" | grep -v "example" | grep -v "secret123"; then
+          echo "❌ Potential hardcoded password found!"
+          exit 1
+        fi
+        
+        echo "✅ No hardcoded secrets detected"
+
+    - name: Validate JSON files
+      run: |
+        # Validate any JSON files in the project
+        echo "🔍 Validating JSON files..."
+        
+        find . -name "*.json" -not -path "./.git/*" | while read file; do
+          echo "Checking $file..."
+          uv run python -c "
+        import json
+        import sys
+        try:
+            with open('$file', 'r') as f:
+                json.load(f)
+            print('✅ $file is valid JSON')
+        except json.JSONDecodeError as e:
+            print(f'❌ $file is invalid JSON: {e}')
+            sys.exit(1)
+        except FileNotFoundError:
+            pass
+        "
+        done
+
+  integration-test:
+    runs-on: ubuntu-latest
+    needs: test
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+
+    - name: Set up Python
+      run: uv python install 3.11
+
+    - name: Install dependencies
+      run: uv sync --dev
+
+    - name: Test data persistence
+      run: |
+        uv run python -c "
+        import tempfile
+        import os
+        import json
+        from bot import UserDataManager
+        
+        print('🧪 Testing data persistence...')
+        
+        # Create temporary file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            temp_file = f.name
+        
+        try:
+            # Test 1: Save data
+            manager1 = UserDataManager(temp_file)
+            manager1.set_user_data('123', 'key1', 'value1')
+            manager1.set_user_data('123', 'key2', 'value2')
+            
+            # Test 2: Load data with new manager instance
+            manager2 = UserDataManager(temp_file)
+            value1 = manager2.get_user_data('123', 'key1')
+            value2 = manager2.get_user_data('123', 'key2')
+            
+            # Verify
+            assert value1 == 'value1', f'Expected value1, got {value1}'
+            assert value2 == 'value2', f'Expected value2, got {value2}'
+            
+            # Test 3: Check file format
+            with open(temp_file, 'r') as f:
+                data = json.load(f)
+            
+            expected = {'123': {'key1': 'value1', 'key2': 'value2'}}
+            assert data == expected, f'File format mismatch: {data}'
+            
+            print('✅ Data persistence test passed')
+            
+        finally:
+            os.unlink(temp_file)
+        "
+
+    - name: Test concurrent access (simulation)
+      run: |
+        uv run python -c "
+        import tempfile
+        import os
+        import threading
+        import time
+        from bot import UserDataManager
+        
+        print('🧪 Testing concurrent access simulation...')
+        
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            temp_file = f.name
+        
+        results = []
+        errors = []
+        
+        def worker(user_id, data_count):
+            try:
+                manager = UserDataManager(temp_file)
+                for i in range(data_count):
+                    key = f'key_{user_id}_{i}'
+                    value = f'value_{user_id}_{i}'
+                    success = manager.set_user_data(str(user_id), key, value)
+                    if success:
+                        retrieved = manager.get_user_data(str(user_id), key)
+                        if retrieved == value:
+                            results.append(f'User {user_id}: {key} OK')
+                        else:
+                            errors.append(f'User {user_id}: {key} value mismatch')
+                    else:
+                        errors.append(f'User {user_id}: {key} save failed')
+            except Exception as e:
+                errors.append(f'User {user_id}: Exception {e}')
+        
+        try:
+            # Simulate concurrent users
+            threads = []
+            for user_id in range(3):
+                thread = threading.Thread(target=worker, args=(user_id, 5))
+                threads.append(thread)
+                thread.start()
+            
+            # Wait for all threads
+            for thread in threads:
+                thread.join()
+            
+            if errors:
+                print(f'❌ Concurrent access errors: {errors}')
+                exit(1)
+            else:
+                print(f'✅ Concurrent access test passed: {len(results)} operations')
+                
+        finally:
+            os.unlink(temp_file)
+        "

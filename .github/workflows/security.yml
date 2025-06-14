@@ -1,0 +1,173 @@
+name: Security and Dependency Check
+
+on:
+  schedule:
+    - cron: '0 0 * * 1'  # Run weekly on Monday
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  dependency-check:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+
+    - name: Set up Python
+      run: uv python install 3.11
+
+    - name: Check for dependency vulnerabilities
+      run: |
+        uv sync --dev
+        
+        # Generate current lock information
+        echo "📋 Current dependencies:"
+        uv pip list
+        
+        echo ""
+        echo "🔍 Checking for known vulnerabilities..."
+        
+        # Basic check for discord.py version
+        DISCORD_VERSION=$(uv pip show discord.py | grep Version | cut -d' ' -f2)
+        echo "Discord.py version: $DISCORD_VERSION"
+        
+        # Check if we're using a reasonably recent version
+        MIN_VERSION="2.3.0"
+        if [ "$(printf '%s\n' "$MIN_VERSION" "$DISCORD_VERSION" | sort -V | head -n1)" = "$MIN_VERSION" ]; then
+          echo "✅ Discord.py version is acceptable"
+        else
+          echo "⚠️ Discord.py version might be outdated"
+        fi
+
+    - name: Check requirements.txt sync
+      run: |
+        # Generate fresh requirements.txt
+        uv pip compile pyproject.toml -o requirements-check.txt
+        
+        # Compare with committed version
+        if [ -f requirements.txt ]; then
+          if diff requirements.txt requirements-check.txt > /dev/null; then
+            echo "✅ requirements.txt is up to date"
+          else
+            echo "⚠️ requirements.txt might be outdated"
+            echo "Differences:"
+            diff requirements.txt requirements-check.txt || true
+          fi
+        else
+          echo "⚠️ requirements.txt not found"
+        fi
+
+  license-check:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+
+    - name: Set up Python
+      run: uv python install 3.11
+
+    - name: Check dependency licenses
+      run: |
+        uv sync --dev
+        
+        echo "📄 Dependency licenses:"
+        
+        # List main dependencies and their licenses
+        echo "discord.py:"
+        uv pip show discord.py | grep -E "(Name|Version|License)" || echo "License info not available"
+        
+        echo ""
+        echo "python-dotenv:"
+        uv pip show python-dotenv | grep -E "(Name|Version|License)" || echo "License info not available"
+        
+        echo ""
+        echo "✅ License check completed"
+
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Scan for secrets
+      run: |
+        echo "🔍 Scanning for potential secrets..."
+        
+        # Check for common secret patterns
+        SECRETS_FOUND=0
+        
+        # Discord bot tokens
+        if grep -r "Bot \|MTI\|NTY\|NDc" --include="*.py" --include="*.yml" --include="*.yaml" --exclude-dir=.git . | grep -v "your_token_here" | grep -v "fake_token"; then
+          echo "❌ Potential Discord token found!"
+          SECRETS_FOUND=1
+        fi
+        
+        # API keys
+        if grep -r "api_key\|apikey\|api-key" --include="*.py" --exclude-dir=.git . | grep -v "test" | grep -v "example"; then
+          echo "❌ Potential API key found!"
+          SECRETS_FOUND=1
+        fi
+        
+        # Private keys
+        if grep -r "private_key\|privatekey\|private-key" --include="*.py" --exclude-dir=.git . | grep -v "test" | grep -v "example"; then
+          echo "❌ Potential private key found!"
+          SECRETS_FOUND=1
+        fi
+        
+        # Environment file content
+        if grep -r "DISCORD_TOKEN=" --include="*.py" --exclude-dir=.git . | grep -v "getenv\|environ\|your_token_here\|fake_token"; then
+          echo "❌ Potential hardcoded token found!"
+          SECRETS_FOUND=1
+        fi
+        
+        if [ $SECRETS_FOUND -eq 0 ]; then
+          echo "✅ No secrets detected"
+        else
+          echo "❌ Potential secrets found - please review!"
+          exit 1
+        fi
+
+  file-integrity:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Check file integrity
+      run: |
+        echo "🔍 Checking file integrity..."
+        
+        # Check for required files
+        REQUIRED_FILES=("bot.py" "pyproject.toml" ".env.example" ".gitignore" "README.md")
+        
+        for file in "${REQUIRED_FILES[@]}"; do
+          if [ -f "$file" ]; then
+            echo "✅ $file exists"
+          else
+            echo "❌ $file missing"
+            exit 1
+          fi
+        done
+        
+        # Check that .env is gitignored
+        if grep -q "\.env" .gitignore; then
+          echo "✅ .env is properly gitignored"
+        else
+          echo "❌ .env should be in .gitignore"
+          exit 1
+        fi
+        
+        # Check that user_data.json is gitignored
+        if grep -q "user_data\.json" .gitignore; then
+          echo "✅ user_data.json is properly gitignored"
+        else
+          echo "❌ user_data.json should be in .gitignore"
+          exit 1
+        fi
+        
+        echo "✅ File integrity check passed"

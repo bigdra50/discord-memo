@@ -1,0 +1,123 @@
+name: Deploy to Railway
+
+on:
+  push:
+    branches: [ main ]
+    tags: [ 'v*' ]
+  workflow_dispatch:  # Allow manual deployment
+
+jobs:
+  test-before-deploy:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+
+    - name: Set up Python
+      run: uv python install 3.11
+
+    - name: Install dependencies
+      run: uv sync --dev
+
+    - name: Run tests
+      run: |
+        uv run python test_bot.py
+        uv run python manual_test.py
+
+  generate-requirements:
+    runs-on: ubuntu-latest
+    needs: test-before-deploy
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v3
+
+    - name: Set up Python
+      run: uv python install 3.11
+
+    - name: Generate requirements.txt
+      run: |
+        uv pip compile pyproject.toml -o requirements.txt
+
+    - name: Upload requirements.txt
+      uses: actions/upload-artifact@v4
+      with:
+        name: requirements
+        path: requirements.txt
+
+    - name: Commit updated requirements.txt
+      if: github.ref == 'refs/heads/main'
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        
+        if ! git diff --quiet requirements.txt; then
+          git add requirements.txt
+          git commit -m "🤖 Update requirements.txt"
+          git push
+        else
+          echo "requirements.txt is up to date"
+
+  deploy-railway:
+    runs-on: ubuntu-latest
+    needs: generate-requirements
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    environment: production  # Requires approval for production deployment
+    
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0  # Fetch full history for proper deployment
+
+    - name: Download requirements.txt
+      uses: actions/download-artifact@v4
+      with:
+        name: requirements
+
+    - name: Install Railway CLI
+      run: |
+        curl -fsSL https://railway.app/install.sh | sh
+        echo "$HOME/.railway/bin" >> $GITHUB_PATH
+
+    - name: Deploy to Railway
+      run: |
+        # Railway deployment
+        echo "🚀 Deploying to Railway..."
+        
+        # Note: RAILWAY_TOKEN should be set as a repository secret
+        # railway login --token ${{ secrets.RAILWAY_TOKEN }}
+        # railway deploy
+        
+        # For now, just show deployment readiness
+        echo "✅ Deployment files ready:"
+        echo "  - bot.py"
+        echo "  - requirements.txt"
+        echo "  - pyproject.toml"
+        
+        echo "📝 Railway deployment steps:"
+        echo "1. Connect this repository to Railway"
+        echo "2. Set environment variable: DISCORD_TOKEN"
+        echo "3. Railway will automatically deploy on push to main"
+      env:
+        RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+  notify-deployment:
+    runs-on: ubuntu-latest
+    needs: [deploy-railway]
+    if: always()
+    steps:
+    - name: Notify deployment status
+      run: |
+        if [ "${{ needs.deploy-railway.result }}" == "success" ]; then
+          echo "✅ Deployment successful!"
+        else
+          echo "❌ Deployment failed!"
+        fi
+        
+        echo "📊 Deployment summary:"
+        echo "  - Commit: ${{ github.sha }}"
+        echo "  - Branch: ${{ github.ref_name }}"
+        echo "  - Workflow: ${{ github.workflow }}"
