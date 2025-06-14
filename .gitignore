@@ -34,3 +34,6 @@ Thumbs.db
 
 # UV
 .python-version
+local_user_data.json
+docs/requirement.md
+.claude/settings.local.json
